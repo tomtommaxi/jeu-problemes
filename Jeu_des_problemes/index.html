@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6200ea">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#6200ea"/>
+  <title>Jeu des Problèmes</title>
+  <style>
+    :root{
+      --violet:#6200ea;
+      --bg:#f7f7f7;
+      --card:#ffffff;
+      --text:#222;
+      --outline:#d9d9d9;
+      --green:#2ecc71;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      padding:20px;
+      padding-left:calc(20px + env(safe-area-inset-left));
+      padding-right:calc(20px + env(safe-area-inset-right));
+      padding-top:calc(20px + env(safe-area-inset-top));
+      padding-bottom:calc(20px + env(safe-area-inset-bottom));
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:var(--bg); color:var(--text); text-align:center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    h1{margin:10px 0 20px}
+    .hidden{display:none}
+    .btn{
+      display:inline-block;
+      padding:14px 18px; margin:8px;
+      font-size:18px; border:none; border-radius:12px; color:#fff;
+      background:var(--violet); cursor:pointer;
+      min-height:48px; touch-action:manipulation;
+      box-shadow:0 6px 14px rgba(98,0,234,.18);
+    }
+    .btn:active{transform:scale(.98)}
+    .btn:disabled{opacity:.5; cursor:not-allowed}
+    .btn-outline{
+      background:#fff; color:#333; border:2px solid var(--outline);
+      box-shadow:none; min-height:48px;
+    }
+    .btn-outline.selected{
+      border:3px solid var(--green);
+      background:#e9f9ef;
+      font-weight:700;
+    }
+    .card{
+      background:var(--card); border-radius:16px; padding:16px; margin:14px auto;
+      box-shadow:0 6px 20px rgba(0,0,0,.08); max-width:720px; text-align:center;
+    }
+    .question{font-size:22px; font-weight:600}
+    .inputs{display:flex; flex-direction:column; gap:10px; align-items:center}
+    .input{
+      width:92%; max-width:560px; padding:14px; border-radius:12px;
+      border:1px solid #ddd; font-size:16px; /* 16px = pas de zoom iOS */
+      background:#fff;
+    }
+    .row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
+    .muted{opacity:.8; font-size:14px}
+    .tag{display:inline-block; padding:6px 10px; border-radius:999px; background:#eee; font-size:14px}
+
+    /* Grille de boutons pour les joueurs */
+    .grid{
+      display:grid; gap:10px; margin:12px auto;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      width:92%; max-width:560px;
+    }
+
+    /* Pièce contrôlée par transform */
+    .coinwrap {margin:12px auto; position:relative; z-index:1;}
+    .coin{
+      width:140px; height:140px; margin:0 auto; position:relative;
+      transform-style:preserve-3d; perspective:1000px;
+      transform: rotateY(0deg); /* 0deg = PILE visible */
+    }
+    .face{
+      position:absolute; inset:0; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:28px; font-weight:800; color:#262200;
+      backface-visibility:hidden; border:3px solid #c08a00;
+      background: radial-gradient(circle at 30% 30%, #ffe08a, #f4c531 60%, #e2a400);
+      box-shadow:
+        inset 0 0 10px rgba(255,255,255,.6),
+        inset 0 0 30px rgba(0,0,0,.2),
+        0 10px 20px rgba(0,0,0,.15);
+    }
+    .back{
+      transform:rotateY(180deg);
+      background: radial-gradient(circle at 30% 30%, #ffd978, #ecb828 60%, #d89a00);
+    }
+    .header-small{font-weight:700; margin:4px 0 10px}
+
+    /* Zone boutons après flip au-dessus de tout */
+    #afterFlip{ position:relative; z-index:5; }
+
+    /* Confettis (clics non bloquants) */
+    .confetti{
+      position:fixed; top:-10px; width:10px; height:14px; opacity:.95;
+      z-index:9999; will-change: transform; pointer-events:none;
+      animation: fall linear forwards;
+    }
+    @keyframes fall {
+      to { transform: translateY(110vh) rotateZ(360deg) rotateX(180deg); opacity:1; }
+    }
+    .celebration{
+      font-size:18px; margin-top:10px; font-weight:700; color:#1a7f37;
+    }
+
+    /* Mobile tweaks */
+    @media (max-width:520px){
+      body{padding:14px; padding-top:calc(14px + env(safe-area-inset-top));}
+      .btn{width:100%; font-size:17px}
+      .btn-outline{width:100%}
+      .question{font-size:20px}
+      .card{padding:14px}
+    }
+  </style>
+</head>
+<body>
+  <h1>🎲 Jeu des Problèmes</h1>
+
+  <!-- === ÉTAPE 0 : MENU JOUEURS === -->
+  <section id="menu" class="card">
+    <h2>Ajouter les joueurs</h2>
+    <div id="playersContainer" class="inputs">
+      <input class="input player-input" type="text" placeholder="Prénom du joueur" />
+      <input class="input player-input" type="text" placeholder="Prénom du joueur" />
+    </div>
+    <div class="row">
+      <button class="btn" onclick="addPlayerInput()">➕ Ajouter un joueur</button>
+      <button class="btn" onclick="startGame()">Commencer</button>
+    </div>
+    <p class="muted">Astuce : 3+ joueurs rend le jeu plus fun 😉</p>
+  </section>
+
+  <!-- === ÉTAPE 1 : STARTER CHOISIT/ÉCRIT LA QUESTION === -->
+  <section id="starterPhase" class="card hidden">
+    <div id="starterInfo" class="question"></div>
+
+    <div id="questionChoice" class="inputs">
+      <select id="questionSelect" class="input"></select>
+      <div class="muted">…ou écris ta propre question :</div>
+      <input id="customQuestion" class="input" type="text" placeholder="Écris ta question ici" />
+      <button class="btn" id="validateQuestionBtn" onclick="validateQuestion()">Valider la question</button>
+    </div>
+
+    <!-- Même écran après validation : on masque les champs et on affiche ce bloc -->
+    <div id="passToViewer" class="hidden">
+      <p class="question">✅ Question enregistrée (elle est cachée).</p>
+      <p>👉 Donne le téléphone à la personne à qui tu veux <strong>montrer</strong> la question.</p>
+      <button class="btn" onclick="viewerReceived()">Le téléphone est reçu</button>
+    </div>
+  </section>
+
+  <!-- === ÉTAPE 2 : LECTEUR VOIT LA QUESTION & CHOISIT LA CIBLE === -->
+  <section id="viewerStage" class="card hidden">
+    <div class="tag">Lecteur</div>
+    <p id="questionForViewer" class="question"></p>
+    <p>Choisis maintenant le <strong>joueur cible</strong> à qui poser la question :</p>
+    <div id="targetButtons" class="grid"></div>
+    <button id="validateTargetBtn" class="btn hidden" onclick="confirmTarget()">Valider le joueur</button>
+  </section>
+
+  <!-- === ÉTAPE 3 : PASSAGE AU JOUEUR CIBLE === -->
+  <section id="passToTarget" class="card hidden">
+    <p id="passMsg" class="question"></p>
+    <button class="btn" onclick="targetReceived()">Le téléphone est reçu</button>
+  </section>
+
+  <!-- === ÉTAPE 4 : JOUEUR CIBLE & PIÈCE === -->
+  <section id="coinPhase" class="card hidden">
+    <div class="tag">Joueur cible</div>
+    <div id="coinHeader" class="header-small"></div>
+
+    <div class="coinwrap">
+      <div id="coin" class="coin">
+        <div class="face front">PILE</div>
+        <div class="face back">FACE</div>
+      </div>
+    </div>
+
+    <div id="coinInfo" class="muted">Appuie pour lancer la pièce.</div>
+    <button id="flipBtn" class="btn" onclick="flipCoin()">🎲 Lancer la pièce</button>
+
+    <div id="afterFlip" class="hidden">
+      <div id="celebrationText" class="celebration hidden">🎉 PILE ! Tu peux voir la question.</div>
+      <button id="revealBtn" class="btn hidden" onclick="revealToTarget()">👀 Voir la question</button>
+      <button id="nextBtn" class="btn hidden" onclick="nextRound()">➡️ Question suivante</button>
+    </div>
+
+    <div id="questionForTarget" class="card hidden" style="margin-top:14px;">
+      <div class="question" id="qTextTarget"></div>
+    </div>
+  </section>
+
+  <script>
+    // === ÉTAT GLOBAL ===
+    let players = [];
+    let starter = null;
+    let target = null;
+    let selectedTarget = null;
+    let currentQuestion = "";
+    let coinRotation = 0;         // angle cumulé en degrés
+    let lastFlipWasPile = false;  // résultat du lancer
+
+    // 50 questions variées (drôles, malaisantes, difficiles)
+    let availableQuestions = [
+  // — QUESTIONS INITIALES —
+  "Qui est le plus drôle ?",
+  "Qui est le plus beau ?",
+  "Qui a le plus de style ?",
+  "Qui chante le mieux au karaoké ?",
+  "Qui survivrait le plus longtemps sur une île déserte ?",
+  "Qui ferait le meilleur/la meilleure chef(fe) d’équipe ?",
+  "Qui triche le plus aux jeux ?",
+  "Qui serait en retard à son propre mariage ?",
+  "Qui oublierait son propre anniversaire ?",
+  "Qui dirait “je suis presque là” alors qu’il/elle n’est pas parti(e) ?",
+  "Qui se vexe le plus vite ?",
+  "Qui a les goûts musicaux les plus discutables ?",
+  "Qui se perdrait avec un “raccourci” ?",
+  "Qui publierait le post le plus gênant par erreur ?",
+  "Qui répond aux messages le plus lentement ?",
+  "Qui a la meilleure poker face ?",
+  "Qui serait le/la plus susceptible de spoiler une série ?",
+  "Qui ferait semblant de comprendre une discussion technique ?",
+  "Qui a l’humour le plus noir ?",
+  "Qui oublierait de payer sa part sans s’en rendre compte ?",
+  "Qui tomberait amoureux(se) le/la plus vite ?",
+  "Qui garderait un secret pendant 10 ans ?",
+  "Qui dirait une vérité qui fâche au pire moment ?",
+  "Qui a le rire le plus contagieux ?",
+  "Qui se met le plus souvent dans des situations embarrassantes ?",
+  "Qui serait le/la plus à l’aise pour animer un mariage ?",
+  "Qui a l’ego le plus fragile ?",
+  "Qui ferait faillite en premier ?",
+  "Qui aurait le plus de mal sans Internet pendant 24h ?",
+  "Qui est le/la plus mystérieux(se) ?",
+  "Qui ferait le/la meilleur(e) détective ?",
+  "Qui passerait le plus de temps devant le miroir ?",
+  "Qui a le pire réveil (humeur du matin) ?",
+  "Qui a le plus grand sens du sacrifice ?",
+  "Qui prendrait la pire décision sous pression ?",
+  "Qui s’éclipse d’une soirée sans dire au revoir ?",
+  "Qui demanderait une remise pour tout et n’importe quoi ?",
+  "Qui arriverait beaucoup trop tôt à une soirée ?",
+  "Qui a la plus grande capacité à pardonner ?",
+  "Qui ferait la meilleure déclaration d’amour ?",
+  "Qui serait un/une bon(ne) espion(ne) ?",
+  "Qui a l’esprit le plus compétitif ?",
+  "Qui ferait semblant d’être malade pour éviter une sortie ?",
+  "Qui a le “crush” le plus improbable ici ?",
+  "Qui est le/la plus têtu(e) ?",
+  "Qui cuisinerait le plat le plus catastrophique ?",
+  "Qui se lancerait dans un projet sans lire la notice ?",
+  "Qui est le/la plus susceptible d’oublier où il/elle a garé ?",
+  "Qui dirait “j’ai raison” même en ayant tort ?",
+  "Qui raconterait l’histoire la plus honteuse sur soi sans hésiter ?",
+
+  // — QUESTIONS GÊNANTES / SPICY 😳 —
+  "Qui ici a probablement déjà fouillé le téléphone de son/sa partenaire ?",
+  "Qui serait capable de rester avec quelqu’un juste pour ne pas être seul(e) ?",
+  "Qui ici a déjà inventé une excuse bidon pour ne pas revoir quelqu’un après un date ?",
+  "Qui a déjà pleuré après avoir couché avec quelqu’un ?",
+  "Qui ferait le plus probablement un sex-tape volontairement ?",
+  "Qui ici a déjà stalké un ex pendant plus d’un an ?",
+  "Qui a probablement déjà envoyé un message à la mauvaise personne en parlant d’elle ?",
+  "Qui serait le plus probable de finir dans une relation toxique ?",
+  "Qui couche avec quelqu’un sans forcément le/la trouver attirant(e) ?",
+  "Qui est le plus susceptible de dire ‘je t’aime’ juste pour coucher ?",
+  "Qui est le plus probable d’avoir déjà googlé 'comment embrasser' ?",
+  "Qui se masturbe le plus souvent ?",
+  "Qui a déjà pensé à quelqu’un autour de la table en se masturbant ?",
+  "Qui a déjà couché dans un lieu public ?",
+  "Qui mentirait le plus facilement sur son nombre de partenaires ?",
+  "Qui a le plus gros complexe physique ici ?",
+  "Qui fait semblant d’être plus intelligent(e) qu’il/elle ne l’est vraiment ?",
+  "Qui a déjà espionné un(e) ex IRL ou en ligne ?",
+  "Qui n’assume clairement pas ses goûts (série, musique, crushs) ?",
+  "Qui serait capable d’avoir une double vie sans que personne ne le sache ?",
+  "Qui ici est probablement encore amoureux(se) de son ex ?",
+  "Qui pourrait tromper son/sa partenaire et bien le cacher ?",
+  "Qui pourrait sortir avec quelqu’un uniquement pour l’argent ?",
+  "Qui a probablement déjà fantasmé sur un prof / collègue / ami(e) ?",
+  "Qui pense encore à une vieille histoire d’amour qu’il/elle n’a jamais digérée ?",
+  "Qui passerait à la télé pour un scandale ?",
+  "Qui a déjà menti sur sa virginité ?",
+  "Qui simulerait un orgasme pour que ça se termine plus vite ?",
+  "Qui est le/la plus malhonnête ici dans une dispute ?",
+  "Qui poste des trucs en mode 'deep' pour attirer l’attention ?",
+  "Qui est le plus susceptible d’être ghosté après un date ?",
+  "Qui se remettrait en couple avec un(e) ex s’il/elle revenait maintenant ?",
+  "Qui est du genre à répondre 'ok' quand il/elle est vénère ?",
+  "Qui cache le plus de choses sur sa vraie personnalité ?",
+  "Qui est sûrement déjà sorti(e) avec quelqu’un juste pour le physique ?",
+  "Qui a sûrement déjà flirté avec un(e) pote en couple ?",
+  "Qui a la libido la plus élevée ici ?",
+  "Qui pourrait tout plaquer du jour au lendemain ?",
+  "Qui a déjà utilisé un faux nom ou mensonge sur une app de rencontre ?",
+  "Qui est le plus probable d’avoir fait une sextape ?",
+  "Qui est déjà sorti(e) avec quelqu’un juste pour rendre jaloux(se) un(e) ex ?",
+  "Qui est toujours dans le déni de ses sentiments ?",
+  "Qui est probablement déjà allé(e) très loin dans les DM d’un(e) inconnu(e) ?",
+  "Qui a déjà eu honte de ses parents en public ?",
+  "Qui est sûrement déjà sorti(e) avec quelqu’un en pensant à un(e) autre ?",
+  "Qui a déjà été largué(e) par message et l’a mal vécu ?",
+  "Qui est le/la plus à même d’avoir des goûts bizarres au lit ?",
+  "Qui a déjà menti à propos d’un(e) ami(e) ici ?",
+  "Qui pourrait écrire un livre entier sur ses dramas amoureux ?",
+  "Qui a le plus de chances d’avoir un kink chelou ?",
+
+  // — QUESTIONS TRASH 🔥 (très sensibles, à jouer avec des gens avertis) —
+  "Qui ici mériterait le plus de mourir en premier dans un film d’horreur ?",
+  "Qui ici serait le plus susceptible d'être abandonné par tout le monde sans que personne ne s’en rende compte ?",
+  "Qui est clairement là par pitié ce soir ?",
+  "Qui ici serait le parent le plus toxique ?",
+  "Si on devait sacrifier quelqu’un autour de la table, qui serait choisi ?",
+  "Qui serait le moins pleuré s’il/elle mourait demain ?",
+  "Qui a le moins de chances de réussir sa vie ?",
+  "Qui finira seul(e) avec des chats et aucun héritage ?",
+  "Qui serait le plus à même de tout gâcher dans un moment important (genre mariage, accouchement, enterrement...) ?",
+  "Qui a la vibe 'j’ai un corps dans mon congélateur' ?",
+  "Qui ici a probablement déjà fait pleurer quelqu’un juste pour tester son pouvoir ?",
+  "Qui n’a aucun charisme mais ne l’a pas encore compris ?",
+  "Qui ferait le/la pire coloc possible ?",
+  "Qui finirait dans une secte sans s’en rendre compte ?",
+  "Qui serait capable de ruiner une vie par simple jalousie ?"
+];
+
+    // Helpers (affichage robuste)
+    const $ = id => document.getElementById(id);
+    function show(id){ const el=$(id); el.classList.remove("hidden"); el.style.display=""; }
+    function hide(id){ const el=$(id); el.classList.add("hidden"); el.style.display="none"; }
+
+    function renderQuestionOptions(){
+      const sel = $("questionSelect");
+      sel.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "— Choisis une question prédéfinie —";
+      sel.appendChild(placeholder);
+
+      availableQuestions.forEach(q => {
+        const opt = document.createElement("option");
+        opt.value = q; opt.textContent = q;
+        sel.appendChild(opt);
+      });
+
+      sel.disabled = availableQuestions.length === 0;
+      if(availableQuestions.length === 0){
+        sel.innerHTML = "";
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "— Plus de questions prédéfinies (écris la tienne) —";
+        sel.appendChild(opt);
+        sel.disabled = true;
+      }
+    }
+
+    function addPlayerInput(){
+      const c = $("playersContainer");
+      const inp = document.createElement("input");
+      inp.className = "input player-input";
+      inp.type = "text";
+      inp.placeholder = "Prénom du joueur";
+      c.appendChild(inp);
+    }
+
+    function startGame(){
+      const inputs = Array.from(document.querySelectorAll(".player-input"));
+      players = inputs.map(i => i.value.trim()).filter(v => v);
+      if(players.length < 3){
+        alert("Il faut au moins 3 joueurs pour ce mode.");
+        return;
+      }
+      hide("menu");
+      chooseStarter();
+    }
+
+    function chooseStarter(name=null){
+      starter = name || players[Math.floor(Math.random()*players.length)];
+      $("starterInfo").textContent = `🎉 ${starter} commence ! Choisis une question :`;
+      $("customQuestion").value = "";
+      renderQuestionOptions();
+      hide("passToViewer");
+      show("questionChoice");   // dropdown + champ visibles
+      show("starterPhase");
+    }
+
+    // === STARTER CHOISIT LA QUESTION ===
+    function validateQuestion(){
+      const predef = $("questionSelect").value;
+      const custom = $("customQuestion").value.trim();
+      if(!predef && !custom){
+        alert("Choisis une question ou écris-en une.");
+        return;
+      }
+      currentQuestion = custom || predef;
+
+      // Retire la question sélectionnée (si prédéfinie)
+      if(predef){
+        const idx = availableQuestions.indexOf(predef);
+        if(idx >= 0) availableQuestions.splice(idx,1);
+      }
+
+      // Masque le dropdown + champ libre sur CET écran, et affiche le message
+      hide("questionChoice");
+      show("passToViewer");
+    }
+
+    function viewerReceived(){
+      // Le lecteur voit la question et choisit la cible via boutons
+      hide("starterPhase");
+      $("questionForViewer").textContent = currentQuestion;
+
+      const cont = $("targetButtons");
+      cont.innerHTML = "";
+      selectedTarget = null;
+
+      players.forEach(p => {
+        const b = document.createElement("button");
+        b.className = "btn btn-outline";
+        b.textContent = p;
+        b.onclick = () => {
+          document.querySelectorAll("#targetButtons button").forEach(btn=>btn.classList.remove("selected"));
+          b.classList.add("selected");     // bordure verte
+          selectedTarget = p;
+          show("validateTargetBtn");
+        };
+        cont.appendChild(b);
+      });
+
+      hide("validateTargetBtn");
+      show("viewerStage");
+    }
+
+    // Valide le joueur cible après sélection (bordure verte)
+    function confirmTarget(){
+      if(!selectedTarget){ alert("Sélectionne un joueur cible."); return; }
+      target = selectedTarget;
+      hide("viewerStage");
+      $("passMsg").textContent = `👉 Passe le téléphone à ${target}.`;
+      show("passToTarget");
+    }
+
+    function targetReceived(){
+      hide("passToTarget");
+      $("coinHeader").textContent = `C'est à ${target} de lancer la pièce`;
+      $("coinInfo").textContent = "Appuie pour lancer la pièce.";
+      $("questionForTarget").classList.add("hidden");
+      $("qTextTarget").textContent = "";
+      hide("afterFlip");
+      $("celebrationText").classList.add("hidden");
+      $("revealBtn").classList.add("hidden");
+      $("nextBtn").classList.add("hidden");
+      $("flipBtn").disabled = false;
+      show("coinPhase");
+      show("flipBtn");
+
+      // Réinitialise visuellement la pièce à son angle courant sans transition
+      coinRotation = ((coinRotation % 360) + 360) % 360;
+      const coin = $("coin");
+      coin.style.transition = "none";
+      coin.style.transform = `rotateY(${coinRotation}deg)`;
+    }
+
+    // Confettis (non bloquants)
+    function launchConfetti(){
+      const colors = ["#ff4757","#1e90ff","#2ed573","#ffa502","#ff6b81","#5352ed","#70a1ff","#7bed9f","#eccc68"];
+      const pieces = 100;
+      for(let i=0;i<pieces;i++){
+        const c = document.createElement("div");
+        c.className = "confetti";
+        c.style.left = Math.random()*100 + "vw";
+        c.style.background = colors[Math.floor(Math.random()*colors.length)];
+        const dur = 1.6 + Math.random()*1.2;
+        const delay = Math.random()*0.25;
+        c.style.animationDuration = dur + "s";
+        c.style.animationDelay = delay + "s";
+        c.style.width = (8 + Math.random()*6) + "px";
+        c.style.height = (10 + Math.random()*10) + "px";
+        document.body.appendChild(c);
+        setTimeout(()=>c.remove(), (dur+delay+0.2)*1000);
+      }
+      if(navigator.vibrate){ try{ navigator.vibrate(80); }catch(e){} }
+    }
+
+    // Lancer la pièce (50/50) — arrêt naturel sur la bonne face
+    function flipCoin(){
+      const coin = $("coin");
+      const flipBtn = $("flipBtn");
+
+      // Toujours masquer/désactiver "Voir la question" au départ et cacher "Suivante"
+      $("revealBtn").classList.add("hidden");
+      $("revealBtn").disabled = true;
+      $("nextBtn").classList.add("hidden");
+
+      flipBtn.disabled = true;
+      hide("flipBtn");
+      $("coinInfo").textContent = "💫 La pièce tourne...";
+
+      // 50/50
+      lastFlipWasPile = Math.random() < 0.5;
+
+      // Angle actuel normalisé et angle cible (0 = PILE, 180 = FACE)
+      const current = ((coinRotation % 360) + 360) % 360;
+      const desired = lastFlipWasPile ? 0 : 180;
+      const delta = (desired - current + 360) % 360;
+
+      // Plusieurs tours + delta vers la bonne face
+      const extraSpins = 4 + Math.floor(Math.random()*3);  // 4..6 tours
+      const finalAngle = coinRotation + extraSpins*360 + delta;
+
+      coin.style.transition = "transform 1.6s cubic-bezier(.3,.01,.2,1)";
+      coin.offsetHeight;
+      coin.style.transform = `rotateY(${finalAngle}deg)`;
+
+      const onEnd = () => {
+        coin.removeEventListener("transitionend", onEnd);
+        show("afterFlip");
+
+        if (lastFlipWasPile) {
+          // ✅ PILE : on peut révéler
+          $("celebrationText").classList.remove("hidden");
+          $("revealBtn").classList.remove("hidden");
+          $("revealBtn").disabled = false;
+          $("coinInfo").textContent = `🎉 PILE ! ${target} peut voir la question.`;
+          launchConfetti();
+          $("revealBtn").scrollIntoView({behavior:"smooth", block:"center"});
+        } else {
+          // ❌ FACE : ne jamais montrer "Voir la question"
+          $("celebrationText").classList.add("hidden");
+          $("revealBtn").classList.add("hidden");
+          $("revealBtn").disabled = true;
+          $("coinInfo").textContent = "⚪ FACE — la question reste cachée.";
+          $("nextBtn").classList.remove("hidden");
+          $("nextBtn").scrollIntoView({behavior:"smooth", block:"center"});
+        }
+
+        // Mémorise l’orientation finale
+        coinRotation = finalAngle % 360;
+      };
+      coin.addEventListener("transitionend", onEnd, { once:true });
+    }
+
+    function revealToTarget(){
+      if(!lastFlipWasPile) return; // sécurité
+      $("qTextTarget").textContent = currentQuestion;
+      $("questionForTarget").classList.remove("hidden");
+      $("revealBtn").classList.add("hidden");
+      $("nextBtn").classList.remove("hidden");
+      $("nextBtn").scrollIntoView({behavior:"smooth", block:"center"});
+    }
+
+    // Nouveau tour : le nouveau starter = le joueur qui vient de lancer la pièce
+    function nextRound(){
+      hide("coinPhase");
+      chooseStarter(target);
+    }
+  </script>
+  <script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js")
+      .then(() => console.log("✅ Service Worker enregistré"))
+      .catch((err) => console.error("❌ Erreur SW:", err));
+  }
+</script>
+</body>
+</html>
+
