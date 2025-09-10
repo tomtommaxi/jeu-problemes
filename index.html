@@ -186,8 +186,9 @@
     </div>
   </section>
 
-  <!-- Fallback audio (au cas où WebAudio n'est pas prêt) -->
+  <!-- AUDIO: fichiers externes -->
   <audio id="sfxSuccess" src="success.mp3" preload="auto"></audio>
+  <audio id="sfxSpin"    src="spinningcoin.mp3" preload="auto" loop></audio>
 
   <script>
     // === ÉTAT GLOBAL ===
@@ -372,33 +373,82 @@
       if(navigator.vibrate){ try{ navigator.vibrate(80); }catch(e){} }
     }
 
-    // ======== AUDIO : WebAudio (zéro son tant que PILE n'est pas confirmé) ========
-    const htmlSuccess = $("sfxSuccess");  // fallback
+    // ======== AUDIO : WebAudio pour spin + succès ========
+    const htmlSuccess = $("sfxSuccess");   // fallback succès
+    const htmlSpin    = $("sfxSpin");      // fallback spin (déjà loop=true)
+
     let audioCtx = null;
     let successBuffer = null;
+    let spinBuffer = null;
+    let spinSrcNode = null;  // node WebAudio en cours pour le spin
 
     async function initAudio() {
       try {
         if (!audioCtx) {
           const Ctx = window.AudioContext || window.webkitAudioContext;
-          if (!Ctx) return; // vieux navigateur
+          if (!Ctx) return;
           audioCtx = new Ctx();
         }
         if (audioCtx.state === 'suspended') {
-          await audioCtx.resume(); // geste utilisateur : ok
+          await audioCtx.resume();
         }
-        if (!successBuffer) {
-          const res = await fetch(htmlSuccess.src); // même domaine => OK Netlify
+        // Précharge succès si pas encore fait
+        if (!successBuffer && htmlSuccess?.src) {
+          const res = await fetch(htmlSuccess.src);
           const arr = await res.arrayBuffer();
           successBuffer = await audioCtx.decodeAudioData(arr);
         }
+        // Précharge spin si pas encore fait
+        if (!spinBuffer && htmlSpin?.src) {
+          const res2 = await fetch(htmlSpin.src);
+          const arr2 = await res2.arrayBuffer();
+          spinBuffer = await audioCtx.decodeAudioData(arr2);
+        }
       } catch(e) {
-        // silencieux : on utilisera le fallback <audio>
+        // silencieux, on bascule sur fallback <audio> si besoin
       }
     }
 
+    function startSpinLoop() {
+      // Stop sécurité si un ancien loop tourne
+      stopSpinLoop();
+
+      // Priorité WebAudio si buffer prêt
+      if (audioCtx && spinBuffer) {
+        try {
+          const src = audioCtx.createBufferSource();
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.75;
+          src.buffer = spinBuffer;
+          src.loop = true;
+          src.connect(gain).connect(audioCtx.destination);
+          src.start(0);
+          spinSrcNode = { src, gain };
+          return;
+        } catch(e) { /* on passera au fallback */ }
+      }
+      // Fallback <audio> (boucle)
+      try {
+        htmlSpin.currentTime = 0;
+        htmlSpin.play().catch(()=>{});
+      } catch(e) {}
+    }
+
+    function stopSpinLoop() {
+      // WebAudio
+      if (spinSrcNode && spinSrcNode.src) {
+        try { spinSrcNode.src.stop(0); } catch(e) {}
+        try { spinSrcNode.src.disconnect(); spinSrcNode.gain.disconnect(); } catch(e) {}
+        spinSrcNode = null;
+      }
+      // Fallback <audio>
+      try {
+        htmlSpin.pause();
+        htmlSpin.currentTime = 0;
+      } catch(e) {}
+    }
+
     function playSuccess() {
-      // Priorité WebAudio si prêt (fiable même après délai)
       if (audioCtx && successBuffer) {
         try {
           const src = audioCtx.createBufferSource();
@@ -410,23 +460,22 @@
           return;
         } catch(e) {}
       }
-      // Fallback <audio> si besoin
       try {
         htmlSuccess.currentTime = 0;
         htmlSuccess.play().catch(()=>{});
       } catch(e) {}
     }
-    // ============================================================================
+    // =====================================================
 
     // Lancer la pièce (50/50)
     function flipCoin(){
       const coin = $("coin");
       const flipBtn = $("flipBtn");
 
-      // Prépare l'audio sous geste utilisateur (aucune lecture ici)
+      // Prépare WebAudio sous geste utilisateur (ne joue rien ici)
       initAudio();
 
-      // Toujours masquer/désactiver au départ
+      // Reset UI
       $("revealBtn").classList.add("hidden");
       $("revealBtn").disabled = true;
       $("nextBtn").classList.add("hidden");
@@ -447,20 +496,25 @@
       const extraSpins = 4 + Math.floor(Math.random()*3);  // 4..6 tours
       const finalAngle = coinRotation + extraSpins*360 + delta;
 
+      // >>> Démarre le son de rotation (à chaque flip) <<<
+      startSpinLoop();
+
       coin.style.transition = "transform 1.6s cubic-bezier(.3,.01,.2,1)";
       coin.offsetHeight;
       coin.style.transform = `rotateY(${finalAngle}deg)`;
 
       const onEnd = () => {
         coin.removeEventListener("transitionend", onEnd);
+
+        // >>> Stoppe immédiatement le son de rotation
+        stopSpinLoop();
+
         show("afterFlip");
 
         if (lastFlipWasPile) {
-          // ▶️ SON UNIQUEMENT SI PILE
-          // essaie tout de suite…
+          // ▶️ SON succès uniquement sur PILE
           playSuccess();
-          // …et ré-essaie après 150ms si jamais le buffer finissait juste de se charger
-          setTimeout(() => { if (lastFlipWasPile) playSuccess(); }, 150);
+          setTimeout(() => { if (lastFlipWasPile) playSuccess(); }, 150); // petit retry si chargement tardif
 
           $("celebrationText").classList.remove("hidden");
           $("revealBtn").classList.remove("hidden");
