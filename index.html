@@ -1,1 +1,560 @@
+<!DOCTYPE html> 
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#6200ea"/>
+  <title>Jeu des Problèmes</title>
+  <style>
+    :root{
+      --violet:#6200ea;
+      --bg:#f7f7f7;
+      --card:#ffffff;
+      --text:#222;
+      --outline:#d9d9d9;
+      --green:#2ecc71;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      padding:20px;
+      padding-left:calc(20px + env(safe-area-inset-left));
+      padding-right:calc(20px + env(safe-area-inset-right));
+      padding-top:calc(20px + env(safe-area-inset-top));
+      padding-bottom:calc(20px + env(safe-area-inset-bottom));
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:var(--bg); color:#222; text-align:center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    h1{margin:10px 0 20px}
+    .hidden{display:none}
+    .btn{
+      display:inline-block;
+      padding:14px 18px; margin:8px;
+      font-size:18px; border:none; border-radius:12px; color:#fff;
+      background:var(--violet); cursor:pointer;
+      min-height:48px; touch-action:manipulation;
+      box-shadow:0 6px 14px rgba(98,0,234,.18);
+    }
+    .btn:active{transform:scale(.98)}
+    .btn:disabled{opacity:.5; cursor:not-allowed}
+    .btn-outline{
+      background:#fff; color:#333; border:2px solid var(--outline);
+      box-shadow:none; min-height:48px;
+    }
+    .btn-outline.selected{
+      border:3px solid var(--green);
+      background:#e9f9ef;
+      font-weight:700;
+    }
+    .card{
+      background:var(--card); border-radius:16px; padding:16px; margin:14px auto;
+      box-shadow:0 6px 20px rgba(0,0,0,.08); max-width:720px; text-align:center;
+    }
+    .question{font-size:22px; font-weight:600}
+    .inputs{display:flex; flex-direction:column; gap:10px; align-items:center}
+    .input{
+      width:92%; max-width:560px; padding:14px; border-radius:12px;
+      border:1px solid #ddd; font-size:16px; background:#fff;
+    }
+    .row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
+    .muted{opacity:.8; font-size:14px}
+    .tag{display:inline-block; padding:6px 10px; border-radius:999px; background:#eee; font-size:14px}
+
+    .grid{
+      display:grid; gap:10px; margin:12px auto;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      width:92%; max-width:560px;
+    }
+
+    .coinwrap {margin:12px auto; position:relative; z-index:1;}
+    .coin{
+      width:140px; height:140px; margin:0 auto; position:relative;
+      transform-style:preserve-3d; perspective:1000px;
+      transform: rotateY(0deg); /* 0deg = PILE visible */
+    }
+    .face{
+      position:absolute; inset:0; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:28px; font-weight:800; color:#262200;
+      backface-visibility:hidden; border:3px solid #c08a00;
+      background: radial-gradient(circle at 30% 30%, #ffe08a, #f4c531 60%, #e2a400);
+      box-shadow:
+        inset 0 0 10px rgba(255,255,255,.6),
+        inset 0 0 30px rgba(0,0,0,.2),
+        0 10px 20px rgba(0,0,0,.15);
+    }
+    .back{
+      transform:rotateY(180deg);
+      background: radial-gradient(circle at 30% 30%, #ffd978, #ecb828 60%, #d89a00);
+    }
+    .header-small{font-weight:700; margin:4px 0 10px}
+    #afterFlip{ position:relative; z-index:5; }
+
+    .confetti{
+      position:fixed; top:-10px; width:10px; height:14px; opacity:.95;
+      z-index:9999; pointer-events:none;
+      animation: fall linear forwards;
+    }
+    @keyframes fall {
+      to { transform: translateY(110vh) rotateZ(360deg) rotateX(180deg); opacity:1; }
+    }
+    .celebration{font-size:18px; margin-top:10px; font-weight:700; color:#1a7f37;}
+    @media (max-width:520px){
+      body{padding:14px; padding-top:calc(14px + env(safe-area-inset-top));}
+      .btn{width:100%; font-size:17px}
+      .btn-outline{width:100%}
+      .question{font-size:20px}
+      .card{padding:14px}
+    }
+  </style>
+</head>
+<body>
+  <h1>🎲 Jeu des Problèmes</h1>
+
+  <!-- === ÉTAPE 0 : MENU JOUEURS === -->
+  <section id="menu" class="card">
+    <h2>Ajouter les joueurs</h2>
+    <div id="playersContainer" class="inputs">
+      <input class="input player-input" type="text" placeholder="Prénom du joueur" />
+      <input class="input player-input" type="text" placeholder="Prénom du joueur" />
+    </div>
+    <div class="row">
+      <button class="btn" onclick="addPlayerInput()">➕ Ajouter un joueur</button>
+      <button class="btn" onclick="startGame()">Commencer</button>
+    </div>
+    <p class="muted">Astuce : 3+ joueurs rend le jeu plus fun 😉</p>
+  </section>
+
+  <!-- === ÉTAPE 1 : STARTER CHOISIT/ÉCRIT LA QUESTION === -->
+  <section id="starterPhase" class="card hidden">
+    <div id="starterInfo" class="question"></div>
+
+    <div id="questionChoice" class="inputs">
+      <select id="questionSelect" class="input"></select>
+      <div class="muted">…ou écris ta propre question :</div>
+      <input id="customQuestion" class="input" type="text" placeholder="Écris ta question ici" />
+      <button class="btn" id="validateQuestionBtn" onclick="validateQuestion()">Valider la question</button>
+    </div>
+
+    <div id="passToViewer" class="hidden">
+      <p class="question">✅ Question enregistrée (elle est cachée).</p>
+      <p>👉 Donne le téléphone à la personne à qui tu veux <strong>montrer</strong> la question.</p>
+      <button class="btn" onclick="viewerReceived()">Le téléphone est reçu</button>
+    </div>
+  </section>
+
+  <!-- === ÉTAPE 2 : LECTEUR VOIT LA QUESTION & CHOISIT LA CIBLE === -->
+  <section id="viewerStage" class="card hidden">
+    <div class="tag">Lecteur</div>
+    <p id="questionForViewer" class="question"></p>
+    <p>Choisis maintenant le <strong>joueur cible</strong> à qui poser la question :</p>
+    <div id="targetButtons" class="grid"></div>
+    <button id="validateTargetBtn" class="btn hidden" onclick="confirmTarget()">Valider le joueur</button>
+  </section>
+
+  <!-- === ÉTAPE 3 : PASSAGE AU JOUEUR CIBLE === -->
+  <section id="passToTarget" class="card hidden">
+    <p id="passMsg" class="question"></p>
+    <button class="btn" onclick="targetReceived()">Le téléphone est reçu</button>
+  </section>
+
+  <!-- === ÉTAPE 4 : JOUEUR CIBLE & PIÈCE === -->
+  <section id="coinPhase" class="card hidden">
+    <div class="tag">Joueur cible</div>
+    <div id="coinHeader" class="header-small"></div>
+
+    <div class="coinwrap">
+      <div id="coin" class="coin">
+        <div class="face front">PILE</div>
+        <div class="face back">FACE</div>
+      </div>
+    </div>
+
+    <div id="coinInfo" class="muted">Appuie pour lancer la pièce.</div>
+    <button id="flipBtn" class="btn" onclick="flipCoin()">🎲 Lancer la pièce</button>
+
+    <div id="afterFlip" class="hidden">
+      <div id="celebrationText" class="celebration hidden">🎉 PILE ! Tu peux voir la question.</div>
+      <button id="revealBtn" class="btn hidden" onclick="revealToTarget()">👀 Voir la question</button>
+      <button id="nextBtn" class="btn hidden" onclick="nextRound()">➡️ Question suivante</button>
+    </div>
+
+    <div id="questionForTarget" class="card hidden" style="margin-top:14px;">
+      <div class="question" id="qTextTarget"></div>
+    </div>
+  </section>
+
+  <!-- AUDIO -->
+  <audio id="sfxSuccess" src="success.mp3" preload="auto"></audio>
+  <audio id="sfxSpin"    src="spinningcoin.mp3" preload="auto" loop></audio>
+
+  <script>
+    // === ÉTAT GLOBAL ===
+    let players = [];
+    let starter = null;           // celui/celle qui choisit la question (exclu de la cible)
+    let target = null;
+    let selectedTarget = null;
+    let currentQuestion = "";
+    let coinRotation = 0;
+    let lastFlipWasPile = false;
+    let questionRevealed = false; // <- garde-fou
+
+    let availableQuestions = [
+      "Qui est le plus drôle ?","Qui est le plus beau ?","Qui a le plus de style ?",
+      "Qui chante le mieux au karaoké ?","Qui survivrait le plus longtemps sur une île déserte ?",
+      "Qui ferait le meilleur/la meilleure chef(fe) d’équipe ?","Qui triche le plus aux jeux ?",
+      "Qui serait en retard à son propre mariage ?","Qui oublierait son propre anniversaire ?",
+      "Qui dirait “je suis presque là” alors qu’il/elle n’est pas parti(e) ?",
+      "Qui a l’humour le plus noir ?","Qui tomberait amoureux(se) le/la plus vite ?",
+      "Qui garderait un secret pendant 10 ans ?","Qui a le rire le plus contagieux ?",
+      "Qui a l’ego le plus fragile ?","Qui ferait faillite en premier ?",
+      "Qui demanderait une remise pour tout et n’importe quoi ?",
+      "Qui ferait la meilleure déclaration d’amour ?","Qui a l’esprit le plus compétitif ?",
+      "Qui a le “crush” le plus improbable ici ?",
+      "Qui raconterait l’histoire la plus honteuse sur soi sans hésiter ?"
+    ];
+
+    // Helpers
+    const $ = id => document.getElementById(id);
+    function show(id){ const el=$(id); el.classList.remove("hidden"); el.style.display=""; }
+    function hide(id){ const el=$(id); el.classList.add("hidden"); el.style.display="none"; }
+
+    function renderQuestionOptions(){
+      const sel = $("questionSelect");
+      sel.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "— Choisis une question prédéfinie —";
+      sel.appendChild(placeholder);
+
+      availableQuestions.forEach(q => {
+        const opt = document.createElement("option");
+        opt.value = q; opt.textContent = q;
+        sel.appendChild(opt);
+      });
+
+      sel.disabled = availableQuestions.length === 0;
+      if(availableQuestions.length === 0){
+        sel.innerHTML = "";
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "— Plus de questions prédéfinies (écris la tienne) —";
+        sel.appendChild(opt);
+        sel.disabled = true;
+      }
+    }
+
+    function addPlayerInput(){
+      const c = $("playersContainer");
+      const inp = document.createElement("input");
+      inp.className = "input player-input";
+      inp.type = "text";
+      inp.placeholder = "Prénom du joueur";
+      c.appendChild(inp);
+    }
+
+    function startGame(){
+      const inputs = Array.from(document.querySelectorAll(".player-input"));
+      players = inputs.map(i => i.value.trim()).filter(v => v);
+      if(players.length < 3){
+        alert("Il faut au moins 3 joueurs pour ce mode.");
+        return;
+      }
+      hide("menu");
+      chooseStarter();
+    }
+
+    function chooseStarter(name=null){
+      starter = name || players[Math.floor(Math.random()*players.length)];
+      $("starterInfo").textContent = `🎉 ${starter} commence ! Choisis une question :`;
+      $("customQuestion").value = "";
+      renderQuestionOptions();
+      hide("passToViewer");
+      show("questionChoice");
+      show("starterPhase");
+    }
+
+    // === STARTER CHOISIT LA QUESTION ===
+    function validateQuestion(){
+      const predef = $("questionSelect").value;
+      const custom = $("customQuestion").value.trim();
+      if(!predef && !custom){
+        alert("Choisis une question ou écris-en une.");
+        return;
+      }
+      currentQuestion = custom || predef;
+
+      if(predef){
+        const idx = availableQuestions.indexOf(predef);
+        if(idx >= 0) availableQuestions.splice(idx,1);
+      }
+
+      hide("questionChoice");
+      show("passToViewer");
+    }
+
+    function viewerReceived(){
+      hide("starterPhase");
+      $("questionForViewer").textContent = currentQuestion;
+
+      const cont = $("targetButtons");
+      cont.innerHTML = "";
+      selectedTarget = null;
+
+      // Exclure le starter (il a choisi la question)
+      players
+        .filter(p => p !== starter)
+        .forEach(p => {
+          const b = document.createElement("button");
+          b.className = "btn btn-outline";
+          b.textContent = p;
+          b.onclick = () => {
+            document.querySelectorAll("#targetButtons button").forEach(btn=>btn.classList.remove("selected"));
+            b.classList.add("selected");
+            selectedTarget = p;
+            show("validateTargetBtn");
+          };
+          cont.appendChild(b);
+        });
+
+      hide("validateTargetBtn");
+      show("viewerStage");
+    }
+
+    function confirmTarget(){
+      if(!selectedTarget){ alert("Sélectionne un joueur cible."); return; }
+      target = selectedTarget;
+      hide("viewerStage");
+      $("passMsg").textContent = `👉 Passe le téléphone à ${target}.`;
+      show("passToTarget");
+    }
+
+    function targetReceived(){
+      hide("passToTarget");
+      $("coinHeader").textContent = `C'est à ${target} de lancer la pièce`;
+      $("coinInfo").textContent = "Appuie pour lancer la pièce.";
+      $("questionForTarget").classList.add("hidden");
+      $("qTextTarget").textContent = "";
+      hide("afterFlip");
+      $("celebrationText").classList.add("hidden");
+      $("revealBtn").classList.add("hidden");
+
+      // IMPORTANT : bouton "Question suivante" totalement remis à zéro
+      hide("nextBtn");
+      $("nextBtn").disabled = true;
+
+      $("flipBtn").disabled = false;
+      show("coinPhase");
+      show("flipBtn");
+
+      questionRevealed = false;   // reset round
+
+      // Réinit orientation visuelle
+      coinRotation = ((coinRotation % 360) + 360) % 360;
+      const coin = $("coin");
+      coin.style.transition = "none";
+      coin.style.transform = `rotateY(${coinRotation}deg)`;
+    }
+
+    // Confettis
+    function launchConfetti(){
+      const colors = ["#ff4757","#1e90ff","#2ed573","#ffa502","#ff6b81","#5352ed","#70a1ff","#7bed9f","#eccc68"];
+      const pieces = 100;
+      for(let i=0;i<pieces;i++){
+        const c = document.createElement("div");
+        c.className = "confetti";
+        c.style.left = Math.random()*100 + "vw";
+        c.style.background = colors[Math.floor(Math.random()*colors.length)];
+        const dur = 1.6 + Math.random()*1.2;
+        const delay = Math.random()*0.25;
+        c.style.animationDuration = dur + "s";
+        c.style.animationDelay = delay + "s";
+        c.style.width = (8 + Math.random()*6) + "px";
+        c.style.height = (10 + Math.random()*10) + "px";
+        document.body.appendChild(c);
+        setTimeout(()=>c.remove(), (dur+delay+0.2)*1000);
+      }
+      if(navigator.vibrate){ try{ navigator.vibrate(80); }catch(e){} }
+    }
+
+    // ======== AUDIO : WebAudio pour spin + succès ========
+    const htmlSuccess = $("sfxSuccess");
+    const htmlSpin    = $("sfxSpin");
+
+    let audioCtx = null;
+    let successBuffer = null;
+    let spinBuffer = null;
+    let spinSrcNode = null;
+
+    async function initAudio() {
+      try {
+        if (!audioCtx) {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return;
+          audioCtx = new Ctx();
+        }
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
+        if (!successBuffer && htmlSuccess?.src) {
+          const res = await fetch(htmlSuccess.src);
+          const arr = await res.arrayBuffer();
+          successBuffer = await audioCtx.decodeAudioData(arr);
+        }
+        if (!spinBuffer && htmlSpin?.src) {
+          const res2 = await fetch(htmlSpin.src);
+          const arr2 = await res2.arrayBuffer();
+          spinBuffer = await audioCtx.decodeAudioData(arr2);
+        }
+      } catch(e) {}
+    }
+
+    function startSpinLoop() {
+      stopSpinLoop();
+      if (audioCtx && spinBuffer) {
+        try {
+          const src = audioCtx.createBufferSource();
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.75;
+          src.buffer = spinBuffer;
+          src.loop = true;
+          src.connect(gain).connect(audioCtx.destination);
+          src.start(0);
+          spinSrcNode = { src, gain };
+          return;
+        } catch(e) {}
+      }
+      try { htmlSpin.currentTime = 0; htmlSpin.play().catch(()=>{}); } catch(e) {}
+    }
+
+    function stopSpinLoop() {
+      if (spinSrcNode && spinSrcNode.src) {
+        try { spinSrcNode.src.stop(0); } catch(e) {}
+        try { spinSrcNode.src.disconnect(); spinSrcNode.gain.disconnect(); } catch(e) {}
+        spinSrcNode = null;
+      }
+      try { htmlSpin.pause(); htmlSpin.currentTime = 0; } catch(e) {}
+    }
+
+    function playSuccess() {
+      if (audioCtx && successBuffer) {
+        try {
+          const src = audioCtx.createBufferSource();
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.85;
+          src.buffer = successBuffer;
+          src.connect(gain).connect(audioCtx.destination);
+          src.start(0);
+          return;
+        } catch(e) {}
+      }
+      try { htmlSuccess.currentTime = 0; htmlSuccess.play().catch(()=>{}); } catch(e) {}
+    }
+    // =====================================================
+
+    // Lancer la pièce (50/50)
+    function flipCoin(){
+      const coin = $("coin");
+      const flipBtn = $("flipBtn");
+
+      initAudio(); // prépare l'audio (aucune lecture ici)
+
+      // Reset UI fort
+      hide("revealBtn");
+      $("revealBtn").disabled = true;
+
+      hide("nextBtn");                // <<< on cache VRAIMENT
+      $("nextBtn").disabled = true;   // et on désactive
+      $("questionForTarget").classList.add("hidden");
+      $("qTextTarget").textContent = "";
+      questionRevealed = false;
+
+      flipBtn.disabled = true;
+      hide("flipBtn");
+      $("coinInfo").textContent = "💫 La pièce tourne...";
+
+      // 50/50
+      lastFlipWasPile = Math.random() < 0.5;
+
+      const current = ((coinRotation % 360) + 360) % 360;
+      const desired = lastFlipWasPile ? 0 : 180;
+      const delta = (desired - current + 360) % 360;
+
+      const extraSpins = 4 + Math.floor(Math.random()*3);  // 4..6 tours
+      const finalAngle = coinRotation + extraSpins*360 + delta;
+
+      // Son de rotation en boucle pendant le flip
+      startSpinLoop();
+
+      coin.style.transition = "transform 1.6s cubic-bezier(.3,.01,.2,1)";
+      coin.offsetHeight;
+      coin.style.transform = `rotateY(${finalAngle}deg)`;
+
+      const onEnd = () => {
+        coin.removeEventListener("transitionend", onEnd);
+
+        stopSpinLoop(); // stoppe le son de rotation
+
+        show("afterFlip");
+
+        if (lastFlipWasPile) {
+          // PILE : seul "Voir la question" est visible. "Question suivante" reste caché+disabled.
+          playSuccess();
+          setTimeout(() => { if (lastFlipWasPile) playSuccess(); }, 150);
+          $("celebrationText").classList.remove("hidden");
+          show("revealBtn");
+          $("revealBtn").disabled = false;
+
+          hide("nextBtn");                // <<< double assurance
+          $("nextBtn").disabled = true;
+
+          $("coinInfo").textContent = `🎉 PILE ! ${target} peut voir la question.`;
+          launchConfetti();
+          $("revealBtn").scrollIntoView({behavior:"smooth", block:"center"});
+        } else {
+          // FACE : on montre directement "Question suivante"
+          $("celebrationText").classList.add("hidden");
+          hide("revealBtn");
+          $("revealBtn").disabled = true;
+
+          show("nextBtn");
+          $("nextBtn").disabled = false;
+
+          $("coinInfo").textContent = "⚪ FACE — la question reste cachée.";
+          $("nextBtn").scrollIntoView({behavior:"smooth", block:"center"});
+        }
+
+        coinRotation = finalAngle % 360;
+      };
+      coin.addEventListener("transitionend", onEnd, { once:true });
+    }
+
+    function revealToTarget(){
+      if(!lastFlipWasPile) return;
+      $("qTextTarget").textContent = currentQuestion;
+      $("questionForTarget").classList.remove("hidden");
+
+      hide("revealBtn");
+      questionRevealed = true;
+
+      show("nextBtn");                // <<< apparaît uniquement maintenant
+      $("nextBtn").disabled = false;
+      $("nextBtn").scrollIntoView({behavior:"smooth", block:"center"});
+    }
+
+    function nextRound(){
+      // Bloque toute tentative de passer sans révéler sur PILE
+      if (lastFlipWasPile && !questionRevealed) {
+        alert("Tu dois d'abord appuyer sur « Voir la question » pour la révéler.");
+        return;
+      }
+      hide("coinPhase");
+      chooseStarter(target);
+    }
+  </script>
+</body>
+</html>
+
 
