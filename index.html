@@ -111,11 +111,11 @@
   </style>
 </head>
 <body>
-  <h1>🎲 Jeu des </h1>
+  <h1>🎲 Jeu des Problèmes</h1>
 
   <!-- === ÉTAPE 0 : MENU JOUEURS === -->
   <section id="menu" class="card">
-    <h2>Ajouter les </h2>
+    <h2>Ajouter les joueurs</h2>
     <div id="playersContainer" class="inputs">
       <input class="input player-input" type="text" placeholder="Prénom du joueur" />
       <input class="input player-input" type="text" placeholder="Prénom du joueur" />
@@ -202,19 +202,128 @@
     let questionRevealed = false; // <- garde-fou
 
     let availableQuestions = [
-      "Qui est le plus drôle ?","Qui est le plus beau ?","Qui a le plus de style ?",
-      "Qui chante le mieux au karaoké ?","Qui survivrait le plus longtemps sur une île déserte ?",
-      "Qui ferait le meilleur/la meilleure chef(fe) d’équipe ?","Qui triche le plus aux jeux ?",
-      "Qui serait en retard à son propre mariage ?","Qui oublierait son propre anniversaire ?",
-      "Qui dirait “je suis presque là” alors qu’il/elle n’est pas parti(e) ?",
-      "Qui a l’humour le plus noir ?","Qui tomberait amoureux(se) le/la plus vite ?",
-      "Qui garderait un secret pendant 10 ans ?","Qui a le rire le plus contagieux ?",
-      "Qui a l’ego le plus fragile ?","Qui ferait faillite en premier ?",
-      "Qui demanderait une remise pour tout et n’importe quoi ?",
-      "Qui ferait la meilleure déclaration d’amour ?","Qui a l’esprit le plus compétitif ?",
-      "Qui a le “crush” le plus improbable ici ?",
-      "Qui raconterait l’histoire la plus honteuse sur soi sans hésiter ?"
-    ];
+  // — QUESTIONS INITIALES —
+  "Qui est le plus drôle ?",
+  "Qui est le plus beau ?",
+  "Qui a le plus de style ?",
+  "Qui chante le mieux au karaoké ?",
+  "Qui survivrait le plus longtemps sur une île déserte ?",
+  "Qui ferait le meilleur/la meilleure chef(fe) d’équipe ?",
+  "Qui triche le plus aux jeux ?",
+  "Qui serait en retard à son propre mariage ?",
+  "Qui oublierait son propre anniversaire ?",
+  "Qui dirait “je suis presque là” alors qu’il/elle n’est pas parti(e) ?",
+  "Qui se vexe le plus vite ?",
+  "Qui a les goûts musicaux les plus discutables ?",
+  "Qui se perdrait avec un “raccourci” ?",
+  "Qui publierait le post le plus gênant par erreur ?",
+  "Qui répond aux messages le plus lentement ?",
+  "Qui a la meilleure poker face ?",
+  "Qui serait le/la plus susceptible de spoiler une série ?",
+  "Qui ferait semblant de comprendre une discussion technique ?",
+  "Qui a l’humour le plus noir ?",
+  "Qui oublierait de payer sa part sans s’en rendre compte ?",
+  "Qui tomberait amoureux(se) le/la plus vite ?",
+  "Qui garderait un secret pendant 10 ans ?",
+  "Qui dirait une vérité qui fâche au pire moment ?",
+  "Qui a le rire le plus contagieux ?",
+  "Qui se met le plus souvent dans des situations embarrassantes ?",
+  "Qui serait le/la plus à l’aise pour animer un mariage ?",
+  "Qui a l’ego le plus fragile ?",
+  "Qui ferait faillite en premier ?",
+  "Qui aurait le plus de mal sans Internet pendant 24h ?",
+  "Qui est le/la plus mystérieux(se) ?",
+  "Qui ferait le/la meilleur(e) détective ?",
+  "Qui passerait le plus de temps devant le miroir ?",
+  "Qui a le pire réveil (humeur du matin) ?",
+  "Qui a le plus grand sens du sacrifice ?",
+  "Qui prendrait la pire décision sous pression ?",
+  "Qui s’éclipse d’une soirée sans dire au revoir ?",
+  "Qui demanderait une remise pour tout et n’importe quoi ?",
+  "Qui arriverait beaucoup trop tôt à une soirée ?",
+  "Qui a la plus grande capacité à pardonner ?",
+  "Qui ferait la meilleure déclaration d’amour ?",
+  "Qui serait un/une bon(ne) espion(ne) ?",
+  "Qui a l’esprit le plus compétitif ?",
+  "Qui ferait semblant d’être malade pour éviter une sortie ?",
+  "Qui a le “crush” le plus improbable ici ?",
+  "Qui est le/la plus têtu(e) ?",
+  "Qui cuisinerait le plat le plus catastrophique ?",
+  "Qui se lancerait dans un projet sans lire la notice ?",
+  "Qui est le/la plus susceptible d’oublier où il/elle a garé ?",
+  "Qui dirait “j’ai raison” même en ayant tort ?",
+  "Qui raconterait l’histoire la plus honteuse sur soi sans hésiter ?",
+
+  // — QUESTIONS GÊNANTES / SPICY 😳 —
+  "Qui ici a probablement déjà fouillé le téléphone de son/sa partenaire ?",
+  "Qui serait capable de rester avec quelqu’un juste pour ne pas être seul(e) ?",
+  "Qui ici a déjà inventé une excuse bidon pour ne pas revoir quelqu’un après un date ?",
+  "Qui a déjà pleuré après avoir couché avec quelqu’un ?",
+  "Qui ferait le plus probablement un sex-tape volontairement ?",
+  "Qui ici a déjà stalké un ex pendant plus d’un an ?",
+  "Qui a probablement déjà envoyé un message à la mauvaise personne en parlant d’elle ?",
+  "Qui serait le plus probable de finir dans une relation toxique ?",
+  "Qui couche avec quelqu’un sans forcément le/la trouver attirant(e) ?",
+  "Qui est le plus susceptible de dire ‘je t’aime’ juste pour coucher ?",
+  "Qui est le plus probable d’avoir déjà googlé 'comment embrasser' ?",
+  "Qui se masturbe le plus souvent ?",
+  "Qui a déjà pensé à quelqu’un autour de la table en se masturbant ?",
+  "Qui a déjà couché dans un lieu public ?",
+  "Qui mentirait le plus facilement sur son nombre de partenaires ?",
+  "Qui a le plus gros complexe physique ici ?",
+  "Qui fait semblant d’être plus intelligent(e) qu’il/elle ne l’est vraiment ?",
+  "Qui a déjà espionné un(e) ex IRL ou en ligne ?",
+  "Qui n’assume clairement pas ses goûts (série, musique, crushs) ?",
+  "Qui serait capable d’avoir une double vie sans que personne ne le sache ?",
+  "Qui ici est probablement encore amoureux(se) de son ex ?",
+  "Qui pourrait tromper son/sa partenaire et bien le cacher ?",
+  "Qui pourrait sortir avec quelqu’un uniquement pour l’argent ?",
+  "Qui a probablement déjà fantasmé sur un prof / collègue / ami(e) ?",
+  "Qui pense encore à une vieille histoire d’amour qu’il/elle n’a jamais digérée ?",
+  "Qui passerait à la télé pour un scandale ?",
+  "Qui a déjà menti sur sa virginité ?",
+  "Qui simulerait un orgasme pour que ça se termine plus vite ?",
+  "Qui est le/la plus malhonnête ici dans une dispute ?",
+  "Qui poste des trucs en mode 'deep' pour attirer l’attention ?",
+  "Qui est le plus susceptible d’être ghosté après un date ?",
+  "Qui se remettrait en couple avec un(e) ex s’il/elle revenait maintenant ?",
+  "Qui est du genre à répondre 'ok' quand il/elle est vénère ?",
+  "Qui cache le plus de choses sur sa vraie personnalité ?",
+  "Qui est sûrement déjà sorti(e) avec quelqu’un juste pour le physique ?",
+  "Qui a sûrement déjà flirté avec un(e) pote en couple ?",
+  "Qui a la libido la plus élevée ici ?",
+  "Qui pourrait tout plaquer du jour au lendemain ?",
+  "Qui a déjà utilisé un faux nom ou mensonge sur une app de rencontre ?",
+  "Qui est le plus probable d’avoir fait une sextape ?",
+  "Qui est déjà sorti(e) avec quelqu’un juste pour rendre jaloux(se) un(e) ex ?",
+  "Qui est toujours dans le déni de ses sentiments ?",
+  "Qui est probablement déjà allé(e) très loin dans les DM d’un(e) inconnu(e) ?",
+  "Qui a déjà eu honte de ses parents en public ?",
+  "Qui est sûrement déjà sorti(e) avec quelqu’un en pensant à un(e) autre ?",
+  "Qui a déjà été largué(e) par message et l’a mal vécu ?",
+  "Qui est le/la plus à même d’avoir des goûts bizarres au lit ?",
+  "Qui a déjà menti à propos d’un(e) ami(e) ici ?",
+  "Qui pourrait écrire un livre entier sur ses dramas amoureux ?",
+  "Qui a le plus de chances d’avoir un kink chelou ?",
+
+  // — QUESTIONS TRASH 🔥 (très sensibles, à jouer avec des gens avertis) —
+  "Qui ici mériterait le plus de mourir en premier dans un film d’horreur ?",
+  "Qui ici serait le plus susceptible d'être abandonné par tout le monde sans que personne ne s’en rende compte ?",
+  "Qui est clairement là par pitié ce soir ?",
+  "Qui ici serait le parent le plus toxique ?",
+  "Si on devait sacrifier quelqu’un autour de la table, qui serait choisi ?",
+  "Qui serait le moins pleuré s’il/elle mourait demain ?",
+  "Qui a le moins de chances de réussir sa vie ?",
+  "Qui finira seul(e) avec des chats et aucun héritage ?",
+  "Qui serait le plus à même de tout gâcher dans un moment important (genre mariage, accouchement, enterrement...) ?",
+  "Qui a la vibe 'j’ai un corps dans mon congélateur' ?",
+  "Qui ici a probablement déjà fait pleurer quelqu’un juste pour tester son pouvoir ?",
+  "Qui n’a aucun charisme mais ne l’a pas encore compris ?",
+  "Qui ferait le/la pire coloc possible ?",
+  "Qui finirait dans une secte sans s’en rendre compte ?",
+  "Qui serait capable de ruiner une vie par simple jalousie ?"
+];
+
 
     // Helpers
     const $ = id => document.getElementById(id);
@@ -556,7 +665,6 @@
   </script>
 </body>
 </html>
-
 
 
 
