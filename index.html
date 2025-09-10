@@ -178,6 +178,7 @@
     <div id="afterFlip" class="hidden">
       <div id="celebrationText" class="celebration hidden">🎉 PILE ! Tu peux voir la question.</div>
       <button id="revealBtn" class="btn hidden" onclick="revealToTarget()">👀 Voir la question</button>
+      <!-- NOTE: "Question suivante" doit rester caché tant que la question n'est pas révélée -->
       <button id="nextBtn" class="btn hidden" onclick="nextRound()">➡️ Question suivante</button>
     </div>
 
@@ -186,7 +187,7 @@
     </div>
   </section>
 
-  <!-- AUDIO: fichiers externes -->
+  <!-- AUDIO -->
   <audio id="sfxSuccess" src="success.mp3" preload="auto"></audio>
   <audio id="sfxSpin"    src="spinningcoin.mp3" preload="auto" loop></audio>
 
@@ -197,8 +198,8 @@
     let target = null;
     let selectedTarget = null;
     let currentQuestion = "";
-    let coinRotation = 0;         // angle cumulé en degrés
-    let lastFlipWasPile = false;  // résultat du lancer
+    let coinRotation = 0;
+    let lastFlipWasPile = false;
 
     let availableQuestions = [
       "Qui est le plus drôle ?","Qui est le plus beau ?","Qui a le plus de style ?",
@@ -285,7 +286,6 @@
       }
       currentQuestion = custom || predef;
 
-      // Retire la question sélectionnée (si prédéfinie)
       if(predef){
         const idx = availableQuestions.indexOf(predef);
         if(idx >= 0) availableQuestions.splice(idx,1);
@@ -374,13 +374,13 @@
     }
 
     // ======== AUDIO : WebAudio pour spin + succès ========
-    const htmlSuccess = $("sfxSuccess");   // fallback succès
-    const htmlSpin    = $("sfxSpin");      // fallback spin (déjà loop=true)
+    const htmlSuccess = $("sfxSuccess");
+    const htmlSpin    = $("sfxSpin");
 
     let audioCtx = null;
     let successBuffer = null;
     let spinBuffer = null;
-    let spinSrcNode = null;  // node WebAudio en cours pour le spin
+    let spinSrcNode = null;
 
     async function initAudio() {
       try {
@@ -392,28 +392,21 @@
         if (audioCtx.state === 'suspended') {
           await audioCtx.resume();
         }
-        // Précharge succès si pas encore fait
         if (!successBuffer && htmlSuccess?.src) {
           const res = await fetch(htmlSuccess.src);
           const arr = await res.arrayBuffer();
           successBuffer = await audioCtx.decodeAudioData(arr);
         }
-        // Précharge spin si pas encore fait
         if (!spinBuffer && htmlSpin?.src) {
           const res2 = await fetch(htmlSpin.src);
           const arr2 = await res2.arrayBuffer();
           spinBuffer = await audioCtx.decodeAudioData(arr2);
         }
-      } catch(e) {
-        // silencieux, on bascule sur fallback <audio> si besoin
-      }
+      } catch(e) {}
     }
 
     function startSpinLoop() {
-      // Stop sécurité si un ancien loop tourne
       stopSpinLoop();
-
-      // Priorité WebAudio si buffer prêt
       if (audioCtx && spinBuffer) {
         try {
           const src = audioCtx.createBufferSource();
@@ -425,27 +418,18 @@
           src.start(0);
           spinSrcNode = { src, gain };
           return;
-        } catch(e) { /* on passera au fallback */ }
+        } catch(e) {}
       }
-      // Fallback <audio> (boucle)
-      try {
-        htmlSpin.currentTime = 0;
-        htmlSpin.play().catch(()=>{});
-      } catch(e) {}
+      try { htmlSpin.currentTime = 0; htmlSpin.play().catch(()=>{}); } catch(e) {}
     }
 
     function stopSpinLoop() {
-      // WebAudio
       if (spinSrcNode && spinSrcNode.src) {
         try { spinSrcNode.src.stop(0); } catch(e) {}
         try { spinSrcNode.src.disconnect(); spinSrcNode.gain.disconnect(); } catch(e) {}
         spinSrcNode = null;
       }
-      // Fallback <audio>
-      try {
-        htmlSpin.pause();
-        htmlSpin.currentTime = 0;
-      } catch(e) {}
+      try { htmlSpin.pause(); htmlSpin.currentTime = 0; } catch(e) {}
     }
 
     function playSuccess() {
@@ -460,10 +444,7 @@
           return;
         } catch(e) {}
       }
-      try {
-        htmlSuccess.currentTime = 0;
-        htmlSuccess.play().catch(()=>{});
-      } catch(e) {}
+      try { htmlSuccess.currentTime = 0; htmlSuccess.play().catch(()=>{}); } catch(e) {}
     }
     // =====================================================
 
@@ -472,13 +453,12 @@
       const coin = $("coin");
       const flipBtn = $("flipBtn");
 
-      // Prépare WebAudio sous geste utilisateur (ne joue rien ici)
-      initAudio();
+      initAudio(); // prépare l'audio (aucune lecture ici)
 
       // Reset UI
       $("revealBtn").classList.add("hidden");
       $("revealBtn").disabled = true;
-      $("nextBtn").classList.add("hidden");
+      $("nextBtn").classList.add("hidden");              // <- s'assure que "Question suivante" n'est pas visible au départ
       $("questionForTarget").classList.add("hidden");
       $("qTextTarget").textContent = "";
 
@@ -496,7 +476,7 @@
       const extraSpins = 4 + Math.floor(Math.random()*3);  // 4..6 tours
       const finalAngle = coinRotation + extraSpins*360 + delta;
 
-      // >>> Démarre le son de rotation (à chaque flip) <<<
+      // Son de rotation en boucle pendant le flip
       startSpinLoop();
 
       coin.style.transition = "transform 1.6s cubic-bezier(.3,.01,.2,1)";
@@ -506,28 +486,27 @@
       const onEnd = () => {
         coin.removeEventListener("transitionend", onEnd);
 
-        // >>> Stoppe immédiatement le son de rotation
-        stopSpinLoop();
+        stopSpinLoop(); // stoppe le son de rotation
 
         show("afterFlip");
 
         if (lastFlipWasPile) {
-          // ▶️ SON succès uniquement sur PILE
+          // ▶️ Succès: NE PAS montrer "Question suivante" ici
           playSuccess();
-          setTimeout(() => { if (lastFlipWasPile) playSuccess(); }, 150); // petit retry si chargement tardif
-
+          setTimeout(() => { if (lastFlipWasPile) playSuccess(); }, 150);
           $("celebrationText").classList.remove("hidden");
-          $("revealBtn").classList.remove("hidden");
+          $("revealBtn").classList.remove("hidden");      // <- seul ce bouton est visible
           $("revealBtn").disabled = false;
           $("coinInfo").textContent = `🎉 PILE ! ${target} peut voir la question.`;
           launchConfetti();
           $("revealBtn").scrollIntoView({behavior:"smooth", block:"center"});
         } else {
+          // FACE: on ne peut pas voir la question, on propose directement "Question suivante"
           $("celebrationText").classList.add("hidden");
           $("revealBtn").classList.add("hidden");
           $("revealBtn").disabled = true;
           $("coinInfo").textContent = "⚪ FACE — la question reste cachée.";
-          $("nextBtn").classList.remove("hidden");
+          $("nextBtn").classList.remove("hidden");        // <- visible seulement sur FACE
           $("nextBtn").scrollIntoView({behavior:"smooth", block:"center"});
         }
 
@@ -541,7 +520,7 @@
       $("qTextTarget").textContent = currentQuestion;
       $("questionForTarget").classList.remove("hidden");
       $("revealBtn").classList.add("hidden");
-      $("nextBtn").classList.remove("hidden");
+      $("nextBtn").classList.remove("hidden"); // <- "Question suivante" n'apparaît qu'après avoir révélé la question
       $("nextBtn").scrollIntoView({behavior:"smooth", block:"center"});
     }
 
@@ -552,3 +531,4 @@
   </script>
 </body>
 </html>
+
