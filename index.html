@@ -186,7 +186,7 @@
     </div>
   </section>
 
-  <!-- >>> SON DE VICTOIRE (déclenché sur PILE) <<< -->
+  <!-- Fallback audio (au cas où WebAudio n'est pas prêt) -->
   <audio id="sfxSuccess" src="success.mp3" preload="auto"></audio>
 
   <script>
@@ -199,7 +199,6 @@
     let coinRotation = 0;         // angle cumulé en degrés
     let lastFlipWasPile = false;  // résultat du lancer
 
-    // Exemple de liste (tu peux remettre ta longue liste)
     let availableQuestions = [
       "Qui est le plus drôle ?","Qui est le plus beau ?","Qui a le plus de style ?",
       "Qui chante le mieux au karaoké ?","Qui survivrait le plus longtemps sur une île déserte ?",
@@ -296,7 +295,6 @@
     }
 
     function viewerReceived(){
-      // Passe directement à l'écran lecteur
       hide("starterPhase");
       $("questionForViewer").textContent = currentQuestion;
 
@@ -304,7 +302,7 @@
       cont.innerHTML = "";
       selectedTarget = null;
 
-      // ⛔️ Exclure le starter (il a choisi la question)
+      // Exclure le starter (il a choisi la question)
       players
         .filter(p => p !== starter)
         .forEach(p => {
@@ -353,6 +351,7 @@
       coin.style.transform = `rotateY(${coinRotation}deg)`;
     }
 
+    // Confettis
     function launchConfetti(){
       const colors = ["#ff4757","#1e90ff","#2ed573","#ffa502","#ff6b81","#5352ed","#70a1ff","#7bed9f","#eccc68"];
       const pieces = 100;
@@ -373,13 +372,59 @@
       if(navigator.vibrate){ try{ navigator.vibrate(80); }catch(e){} }
     }
 
-    // Référence audio de victoire
-    const sfxSuccess = $("sfxSuccess");
+    // ======== AUDIO : WebAudio (zéro son tant que PILE n'est pas confirmé) ========
+    const htmlSuccess = $("sfxSuccess");  // fallback
+    let audioCtx = null;
+    let successBuffer = null;
 
-    // Lancer la pièce (50/50) — arrêt naturel sur la bonne face
+    async function initAudio() {
+      try {
+        if (!audioCtx) {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return; // vieux navigateur
+          audioCtx = new Ctx();
+        }
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume(); // geste utilisateur : ok
+        }
+        if (!successBuffer) {
+          const res = await fetch(htmlSuccess.src); // même domaine => OK Netlify
+          const arr = await res.arrayBuffer();
+          successBuffer = await audioCtx.decodeAudioData(arr);
+        }
+      } catch(e) {
+        // silencieux : on utilisera le fallback <audio>
+      }
+    }
+
+    function playSuccess() {
+      // Priorité WebAudio si prêt (fiable même après délai)
+      if (audioCtx && successBuffer) {
+        try {
+          const src = audioCtx.createBufferSource();
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.85;
+          src.buffer = successBuffer;
+          src.connect(gain).connect(audioCtx.destination);
+          src.start(0);
+          return;
+        } catch(e) {}
+      }
+      // Fallback <audio> si besoin
+      try {
+        htmlSuccess.currentTime = 0;
+        htmlSuccess.play().catch(()=>{});
+      } catch(e) {}
+    }
+    // ============================================================================
+
+    // Lancer la pièce (50/50)
     function flipCoin(){
       const coin = $("coin");
       const flipBtn = $("flipBtn");
+
+      // Prépare l'audio sous geste utilisateur (aucune lecture ici)
+      initAudio();
 
       // Toujours masquer/désactiver au départ
       $("revealBtn").classList.add("hidden");
@@ -391,19 +436,6 @@
       flipBtn.disabled = true;
       hide("flipBtn");
       $("coinInfo").textContent = "💫 La pièce tourne...";
-
-      // 🔓 Déblocage audio (iOS/Safari) sous geste utilisateur
-      try{
-        const prev = sfxSuccess.volume;
-        sfxSuccess.volume = 0;
-        const p = sfxSuccess.play();
-        if (p && p.then) {
-          p.then(()=>{ sfxSuccess.pause(); sfxSuccess.currentTime = 0; sfxSuccess.volume = prev; })
-           .catch(()=>{ sfxSuccess.volume = prev; });
-        } else {
-          sfxSuccess.pause(); sfxSuccess.currentTime = 0; sfxSuccess.volume = prev;
-        }
-      }catch(e){}
 
       // 50/50
       lastFlipWasPile = Math.random() < 0.5;
@@ -424,9 +456,12 @@
         show("afterFlip");
 
         if (lastFlipWasPile) {
-          // ▶️ SON DE VICTOIRE
-          try{ sfxSuccess.currentTime = 0; sfxSuccess.play().catch(()=>{}); }catch(e){}
-          // UI
+          // ▶️ SON UNIQUEMENT SI PILE
+          // essaie tout de suite…
+          playSuccess();
+          // …et ré-essaie après 150ms si jamais le buffer finissait juste de se charger
+          setTimeout(() => { if (lastFlipWasPile) playSuccess(); }, 150);
+
           $("celebrationText").classList.remove("hidden");
           $("revealBtn").classList.remove("hidden");
           $("revealBtn").disabled = false;
@@ -463,4 +498,3 @@
   </script>
 </body>
 </html>
-
